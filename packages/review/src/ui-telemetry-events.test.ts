@@ -325,6 +325,7 @@ describe("reliability and engagement events", () => {
           exit_code: -1,
           uptime_ms: 1234,
           source: "live",
+          window_id: 7,
         },
       }),
     ).toEqual({
@@ -335,7 +336,26 @@ describe("reliability and engagement events", () => {
         exit_code: -1,
         uptime_ms: 1234,
         source: "live",
+        window_id: 7,
       },
+    });
+  });
+
+  it("accepts process-local window ids on hang events", () => {
+    expect(
+      sanitizeUiTelemetryEvent({
+        name: "hang_started",
+        properties: { window_id: 7 },
+      }),
+    ).toEqual({ event: "review_hang_started", properties: { window_id: 7 } });
+    expect(
+      sanitizeUiTelemetryEvent({
+        name: "hang_ended",
+        properties: { duration_ms: 1200, window_id: 7 },
+      }),
+    ).toEqual({
+      event: "review_hang_ended",
+      properties: { duration_ms: 1200, window_id: 7 },
     });
   });
 
