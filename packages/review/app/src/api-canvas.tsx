@@ -42,6 +42,8 @@ import { ReviewDocumentBoundary } from "./review-document-boundary";
 import { reportReviewDocumentRenderError } from "./review-document-error-report";
 import type { ReviewFindHost } from "./review-find";
 import { ReviewLensesProvider } from "./review-lenses";
+import { ReviewPanelProvider } from "./review-panel";
+import { readReviewNavigationRestore } from "./review-view-state";
 import { SharingContext } from "./share-control";
 import { TutorialProvider } from "./tutorial-context";
 
@@ -369,46 +371,63 @@ export function ApiCanvas({
     <CanvasQueryProvider client={client} reviewId={content.reviewId}>
       <SharingContext.Provider value={sharing}>
         <ReviewSessionProvider session={session}>
-          <DocumentData.Provider value={data}>
-            <ReviewLensesProvider
-              client={client}
-              snapshot={data.snapshot}
-              coverageRevision={coverageRevision}
-              structuralDiffEnabled={content.structuralDiffEnabled}
-            >
-              <TutorialProvider tutorial={content.tutorial}>
-                {error && <p role="status">{error}</p>}
-                <AuthoringActivityContext.Provider
-                  value={version === undefined ? activity : undefined}
-                >
-                  <DrawQueueProvider
-                    cursor={version === undefined ? cursor : undefined}
+          <ReviewPanelProvider
+            restore={() =>
+              readReviewNavigationRestore(session.config, {
+                softwareMapEnabled:
+                  content.softwareMapEnabled === true && data.maps.size > 0,
+                hasChangeRange:
+                  (data.snapshot.pins?.base ?? "") !==
+                  (data.snapshot.pins?.head ?? ""),
+                version: data.snapshot.version,
+                lensMode:
+                  content.structuralDiffEnabled === false
+                    ? "textual"
+                    : "structural",
+              })
+            }
+          >
+            <DocumentData.Provider value={data}>
+              <ReviewLensesProvider
+                client={client}
+                snapshot={data.snapshot}
+                coverageRevision={coverageRevision}
+                structuralDiffEnabled={content.structuralDiffEnabled}
+              >
+                <TutorialProvider tutorial={content.tutorial}>
+                  {error && <p role="status">{error}</p>}
+                  <AuthoringActivityContext.Provider
+                    value={version === undefined ? activity : undefined}
                   >
                     <DrawQueueProvider
-                      scope="lenses"
-                      cursor={version === undefined ? lensCursor : undefined}
+                      cursor={version === undefined ? cursor : undefined}
                     >
-                      <DisplayedReviewVersionContext.Provider
-                        value={data.snapshot.version}
+                      <DrawQueueProvider
+                        scope="lenses"
+                        cursor={version === undefined ? lensCursor : undefined}
                       >
-                        <MapEnabled.Provider
-                          value={content.softwareMapEnabled === true}
+                        <DisplayedReviewVersionContext.Provider
+                          value={data.snapshot.version}
                         >
-                          <CanvasDocument
-                            data={data}
-                            findHost={findHost}
-                            softwareMapEnabled={
-                              content.softwareMapEnabled === true
-                            }
-                          />
-                        </MapEnabled.Provider>
-                      </DisplayedReviewVersionContext.Provider>
+                          <MapEnabled.Provider
+                            value={content.softwareMapEnabled === true}
+                          >
+                            <CanvasDocument
+                              data={data}
+                              findHost={findHost}
+                              softwareMapEnabled={
+                                content.softwareMapEnabled === true
+                              }
+                            />
+                          </MapEnabled.Provider>
+                        </DisplayedReviewVersionContext.Provider>
+                      </DrawQueueProvider>
                     </DrawQueueProvider>
-                  </DrawQueueProvider>
-                </AuthoringActivityContext.Provider>
-              </TutorialProvider>
-            </ReviewLensesProvider>
-          </DocumentData.Provider>
+                  </AuthoringActivityContext.Provider>
+                </TutorialProvider>
+              </ReviewLensesProvider>
+            </DocumentData.Provider>
+          </ReviewPanelProvider>
         </ReviewSessionProvider>
       </SharingContext.Provider>
     </CanvasQueryProvider>
