@@ -30,6 +30,7 @@ import {
   type CursorMemory,
   nextCursor,
 } from "./authoring-cursor";
+import { CanvasQueryProvider } from "./canvas-query";
 import { DisplayedReviewVersionContext } from "./displayed-review-version-context";
 import { DrawQueueProvider } from "./draw-queue-provider";
 import {
@@ -347,65 +348,70 @@ export function ApiCanvas({
   );
 
   // Loads are near-instant, so stay blank until there is data or an error.
+  // Both branches root the same query provider, so its cache outlives a load.
   if (!data)
     return (
-      error !== undefined && (
-        <>
-          <p role="status">{error}</p>
-          {version !== undefined && (
-            <button onClick={() => setVersion(undefined)}>
-              Back to latest version
-            </button>
-          )}
-        </>
-      )
+      <CanvasQueryProvider client={client} reviewId={content.reviewId}>
+        {error !== undefined && (
+          <>
+            <p role="status">{error}</p>
+            {version !== undefined && (
+              <button onClick={() => setVersion(undefined)}>
+                Back to latest version
+              </button>
+            )}
+          </>
+        )}
+      </CanvasQueryProvider>
     );
 
   return (
-    <SharingContext.Provider value={sharing}>
-      <ReviewSessionProvider session={session}>
-        <DocumentData.Provider value={data}>
-          <ReviewLensesProvider
-            client={client}
-            snapshot={data.snapshot}
-            coverageRevision={coverageRevision}
-            structuralDiffEnabled={content.structuralDiffEnabled}
-          >
-            <TutorialProvider tutorial={content.tutorial}>
-              {error && <p role="status">{error}</p>}
-              <AuthoringActivityContext.Provider
-                value={version === undefined ? activity : undefined}
-              >
-                <DrawQueueProvider
-                  cursor={version === undefined ? cursor : undefined}
+    <CanvasQueryProvider client={client} reviewId={content.reviewId}>
+      <SharingContext.Provider value={sharing}>
+        <ReviewSessionProvider session={session}>
+          <DocumentData.Provider value={data}>
+            <ReviewLensesProvider
+              client={client}
+              snapshot={data.snapshot}
+              coverageRevision={coverageRevision}
+              structuralDiffEnabled={content.structuralDiffEnabled}
+            >
+              <TutorialProvider tutorial={content.tutorial}>
+                {error && <p role="status">{error}</p>}
+                <AuthoringActivityContext.Provider
+                  value={version === undefined ? activity : undefined}
                 >
                   <DrawQueueProvider
-                    scope="lenses"
-                    cursor={version === undefined ? lensCursor : undefined}
+                    cursor={version === undefined ? cursor : undefined}
                   >
-                    <DisplayedReviewVersionContext.Provider
-                      value={data.snapshot.version}
+                    <DrawQueueProvider
+                      scope="lenses"
+                      cursor={version === undefined ? lensCursor : undefined}
                     >
-                      <MapEnabled.Provider
-                        value={content.softwareMapEnabled === true}
+                      <DisplayedReviewVersionContext.Provider
+                        value={data.snapshot.version}
                       >
-                        <CanvasDocument
-                          data={data}
-                          findHost={findHost}
-                          softwareMapEnabled={
-                            content.softwareMapEnabled === true
-                          }
-                        />
-                      </MapEnabled.Provider>
-                    </DisplayedReviewVersionContext.Provider>
+                        <MapEnabled.Provider
+                          value={content.softwareMapEnabled === true}
+                        >
+                          <CanvasDocument
+                            data={data}
+                            findHost={findHost}
+                            softwareMapEnabled={
+                              content.softwareMapEnabled === true
+                            }
+                          />
+                        </MapEnabled.Provider>
+                      </DisplayedReviewVersionContext.Provider>
+                    </DrawQueueProvider>
                   </DrawQueueProvider>
-                </DrawQueueProvider>
-              </AuthoringActivityContext.Provider>
-            </TutorialProvider>
-          </ReviewLensesProvider>
-        </DocumentData.Provider>
-      </ReviewSessionProvider>
-    </SharingContext.Provider>
+                </AuthoringActivityContext.Provider>
+              </TutorialProvider>
+            </ReviewLensesProvider>
+          </DocumentData.Provider>
+        </ReviewSessionProvider>
+      </SharingContext.Provider>
+    </CanvasQueryProvider>
   );
 }
 
