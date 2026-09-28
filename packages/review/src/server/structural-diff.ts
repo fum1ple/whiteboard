@@ -9,8 +9,7 @@ import {
   type StructuralProblem,
   decodeStructuralDiffEvent,
 } from "@dev.fast/review-protocol";
-
-import { findReviewPackageRoot } from "../package-paths";
+import { findReviewPackageRoot } from "@review/package-paths";
 
 export type DiffComparison =
   | { kind: "trees"; base: string; head: string }

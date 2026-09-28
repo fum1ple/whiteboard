@@ -1,9 +1,9 @@
+import { ReviewApiClient } from "@review/review-api/client";
 // @vitest-environment jsdom
 import { act, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { ReviewApiClient } from "../../src/review-api/client";
 import { ReviewSessionProvider } from "./host/review-session";
 import { testReviewSession } from "./review-session-test-utils";
 import { ShareControl, SharingContext } from "./share-control";

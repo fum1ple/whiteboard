@@ -1,4 +1,8 @@
 import {
+  type ReviewApiClient,
+  ReviewApiError,
+} from "@review/review-api/client";
+import {
   createContext,
   useCallback,
   useContext,
@@ -6,11 +10,6 @@ import {
   useRef,
   useState,
 } from "react";
-
-import {
-  type ReviewApiClient,
-  ReviewApiError,
-} from "../../src/review-api/client";
 
 import "./share-control.css";
 import { copyText } from "./copy-text";

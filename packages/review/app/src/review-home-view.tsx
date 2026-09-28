@@ -4,6 +4,7 @@ import type {
   ReviewCanvasOnboarding,
   ReviewCanvasSetupActions,
 } from "@dev.fast/review-protocol";
+import { fuzzyMatches, fuzzySegments } from "@review/fuzzy-match";
 import {
   Fragment,
   createContext,
@@ -15,7 +16,6 @@ import {
   useState,
 } from "react";
 
-import { fuzzyMatches, fuzzySegments } from "../../src/fuzzy-match";
 import { OptionMenu } from "./option-menu";
 import { ArchiveIcon } from "./review-corner-action";
 import { useDismissOnOutside } from "./use-dismiss-on-outside";

@@ -1,5 +1,25 @@
 import type { ReviewDiffLens } from "@dev.fast/review-protocol";
 import {
+  type LensSource,
+  comparisonKey,
+  selectionKey,
+} from "@review/lens-selection";
+import type { ReviewApiClient } from "@review/review-api/client";
+import {
+  type Lens,
+  UNCATEGORIZED_LENS_ID,
+} from "@review/review-api/diff-lenses";
+import type { ReviewProgress } from "@review/review-api/review-progress";
+import type { Snapshot } from "@review/review-api/store";
+import type { FileLineRange } from "@review/source";
+import {
+  type CoverageProgress,
+  coverageProgress,
+  coverageSources,
+  mergeCoverageProgress,
+  scopedCoverage,
+} from "@review/viewed-coverage";
+import {
   type ReactNode,
   createContext,
   useContext,
@@ -8,27 +28,6 @@ import {
   useRef,
   useState,
 } from "react";
-
-import {
-  type LensSource,
-  comparisonKey,
-  selectionKey,
-} from "../../src/lens-selection";
-import type { ReviewApiClient } from "../../src/review-api/client";
-import {
-  type Lens,
-  UNCATEGORIZED_LENS_ID,
-} from "../../src/review-api/diff-lenses";
-import type { ReviewProgress } from "../../src/review-api/review-progress";
-import type { Snapshot } from "../../src/review-api/store";
-import type { FileLineRange } from "../../src/source";
-import {
-  type CoverageProgress,
-  coverageProgress,
-  coverageSources,
-  mergeCoverageProgress,
-  scopedCoverage,
-} from "../../src/viewed-coverage";
 
 /** A resolved selection, tagged with the comparison its own pins name so its
  * changed lines are counted there and not in the document's comparison. */

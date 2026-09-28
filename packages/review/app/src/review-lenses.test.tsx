@@ -1,10 +1,10 @@
+import { ReviewApiClient } from "@review/review-api/client";
+import type { Snapshot } from "@review/review-api/store";
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it } from "vitest";
 
-import { ReviewApiClient } from "../../src/review-api/client";
-import type { Snapshot } from "../../src/review-api/store";
 import { ReviewDiffView } from "./DiffView";
 import { ReviewSessionProvider } from "./host/review-session";
 import { ReviewLensesProvider } from "./review-lenses";
