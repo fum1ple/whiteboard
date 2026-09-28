@@ -3134,6 +3134,10 @@ button {
   background: var(--link-open-wash);
 }
 
+.review-document a[data-review-anchor-open] {
+  padding-block: 2px;
+}
+
 .review-document code {
   padding: 2px 5px;
   border-radius: 4px;
