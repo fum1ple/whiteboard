@@ -1,0 +1,8 @@
+/dist/
+/hosts/tauri/target/
+/hosts/tauri/gen/
+/hosts/wails/build/
+/hosts/wails/frontend/wailsjs/
+/fixtures/*/repo/
+/fixtures/*/profile/
+/fixtures/*/manifest.json
