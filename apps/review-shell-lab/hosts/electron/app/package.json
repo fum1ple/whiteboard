@@ -1,0 +1,9 @@
+{
+  "name": "whiteboard-shell-lab-electron",
+  "productName": "Whiteboard Shell Lab Electron",
+  "version": "0.1.0",
+  "main": "main.cjs",
+  "devDependencies": {
+    "electron": "42.10.0"
+  }
+}

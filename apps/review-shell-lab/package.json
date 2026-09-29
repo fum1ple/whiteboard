@@ -1,0 +1,25 @@
+{
+  "name": "@dev.fast/review-shell-lab",
+  "version": "0.0.1",
+  "private": true,
+  "bin": {
+    "shell-lab": "./src/cli.mjs"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "run": "node src/cli.mjs",
+    "fixtures:prepare": "node src/prepare-cli.mjs",
+    "build:electron": "electron-packager hosts/electron/app WhiteboardShellLabElectron --out=dist/electron --overwrite",
+    "build:tauri": "cargo build --release --locked --manifest-path hosts/tauri/Cargo.toml",
+    "build:wails": "node src/build-wails.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "42.10.0",
+    "jsdom": "29.1.1"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}
