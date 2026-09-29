@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Whiteboard Shell Lab</title></head>
+  <body>
+    <main>Starting the shared Whiteboard review…</main>
+    <script>
+      const deadline = Date.now() + 15000;
+      const redirect = () => {
+        const getter = window.go?.main?.App?.ShellURL;
+        if (getter) {
+          getter().then((url) => window.location.replace(url));
+          return;
+        }
+        if (Date.now() < deadline) window.setTimeout(redirect, 25);
+        else document.querySelector("main").textContent = "Wails did not expose the shell URL.";
+      };
+      redirect();
+    </script>
+  </body>
+</html>
