@@ -5,15 +5,20 @@ export function createReadyGate({ runId, timeoutMs = 120_000 }) {
   let settled = false;
   let resolveReady;
   let rejectReady;
+
   const promise = new Promise((resolve, reject) => {
     resolveReady = resolve;
     rejectReady = reject;
   });
+
   const timer = setTimeout(() => {
     const missing = required.filter((part) => !rendered.has(part));
     settled = true;
-    rejectReady(new Error(`Render readiness timed out; missing ${missing.join(", ")}.`));
+    rejectReady(
+      new Error(`Render readiness timed out; missing ${missing.join(", ")}.`),
+    );
   }, timeoutMs);
+
   timer.unref?.();
 
   return {
@@ -27,7 +32,10 @@ export function createReadyGate({ runId, timeoutMs = 120_000 }) {
       if (required.every((item) => rendered.has(item))) {
         settled = true;
         clearTimeout(timer);
-        resolveReady({ runId, rendered: required.filter((item) => rendered.has(item)) });
+        resolveReady({
+          runId,
+          rendered: required.filter((item) => rendered.has(item)),
+        });
       }
     },
     wait() {
@@ -35,6 +43,7 @@ export function createReadyGate({ runId, timeoutMs = 120_000 }) {
     },
     dispose() {
       clearTimeout(timer);
+
       if (!settled) {
         settled = true;
         rejectReady(new Error("Render readiness was cancelled."));

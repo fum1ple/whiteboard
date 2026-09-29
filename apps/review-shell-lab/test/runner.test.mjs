@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { parseRunArgs } from "../src/runner-args.mjs";
-import { createRunContext } from "../src/run-context.mjs";
 import { createReadyGate } from "../src/ready-gate.mjs";
+import { createRunContext } from "../src/run-context.mjs";
+import { parseRunArgs } from "../src/runner-args.mjs";
 
 test("run arguments require a host, fixture, review, and isolated profile", () => {
   assert.deepEqual(
@@ -32,9 +32,31 @@ test("run arguments require a host, fixture, review, and isolated profile", () =
 
 test("run arguments reject missing, unknown, and repeated options", () => {
   for (const args of [
-    ["run", "--host", "unknown", "--fixture", "small", "--review", "r", "--profile", "/tmp/p"],
+    [
+      "run",
+      "--host",
+      "unknown",
+      "--fixture",
+      "small",
+      "--review",
+      "r",
+      "--profile",
+      "/tmp/p",
+    ],
     ["run", "--host", "electron", "--fixture", "small", "--review", "r"],
-    ["run", "--host", "electron", "--host", "wails", "--fixture", "small", "--review", "r", "--profile", "/tmp/p"],
+    [
+      "run",
+      "--host",
+      "electron",
+      "--host",
+      "wails",
+      "--fixture",
+      "small",
+      "--review",
+      "r",
+      "--profile",
+      "/tmp/p",
+    ],
   ]) {
     assert.throws(() => parseRunArgs(args));
   }
@@ -52,7 +74,12 @@ test("run context isolates profile and fixture paths beneath the run id", async 
 
     assert.equal(context.profileDir, path.join(root, "profiles", "run-1"));
     assert.equal(context.fixtureDir, path.join(root, "fixtures", "small"));
-    assert.equal((await readFile(path.join(context.profileDir, ".shell-lab-run"), "utf8")).trim(), "run-1");
+    assert.equal(
+      (
+        await readFile(path.join(context.profileDir, ".shell-lab-run"), "utf8")
+      ).trim(),
+      "run-1",
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -66,7 +93,10 @@ test("ready gate opens only after prose, diagram, diff, and code reference rende
   assert.equal(gate.ready, false);
   gate.markRendered("code-reference");
   assert.equal(gate.ready, true);
-  assert.deepEqual(await gate.wait(), { runId: "run-1", rendered: ["prose", "diagram", "diff", "code-reference"] });
+  assert.deepEqual(await gate.wait(), {
+    runId: "run-1",
+    rendered: ["prose", "diagram", "diff", "code-reference"],
+  });
   gate.dispose();
 });
 
@@ -74,6 +104,9 @@ test("ready gate rejects an incomplete render and ignores duplicate marks", asyn
   const gate = createReadyGate({ runId: "run-2", timeoutMs: 10 });
   gate.markRendered("prose");
   gate.markRendered("prose");
-  await assert.rejects(gate.wait(), /timed out.*diagram.*diff.*code-reference/i);
+  await assert.rejects(
+    gate.wait(),
+    /timed out.*diagram.*diff.*code-reference/i,
+  );
   gate.dispose();
 });
