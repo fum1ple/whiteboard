@@ -9,6 +9,8 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "run": "node src/cli.mjs",
+    "bench": "node bench/run.mjs",
+    "bench:summarize": "node bench/summarize-cli.mjs",
     "fixtures:prepare": "node src/prepare-cli.mjs",
     "build:electron": "electron-packager hosts/electron/app WhiteboardShellLabElectron --out=dist/electron --overwrite",
     "build:tauri": "cargo build --release --locked --manifest-path hosts/tauri/Cargo.toml",

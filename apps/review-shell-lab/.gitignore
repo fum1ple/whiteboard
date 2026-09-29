@@ -1,4 +1,6 @@
 /dist/
+/bench-profiles/
+/bench-results/
 /hosts/tauri/target/
 /hosts/tauri/gen/
 /hosts/wails/build/

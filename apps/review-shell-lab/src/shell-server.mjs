@@ -18,7 +18,10 @@ export async function createShellServer({
   instanceId,
   readiness,
   cli,
+  bench = false,
 }) {
+  let benchResult;
+
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -66,6 +69,7 @@ export async function createShellServer({
           fixture,
           apiPid,
           instanceId,
+          bench,
         });
 
         return;
@@ -105,6 +109,31 @@ export async function createShellServer({
         sendJson(response, 200, { output: await cli(reviewId) });
 
         return;
+      }
+
+      if (url.pathname === "/__bench" && bench) {
+        if (request.method === "GET") {
+          sendJson(response, 200, benchResult ?? { state: "waiting" });
+
+          return;
+        }
+
+        if (request.method === "POST") {
+          const result = await readJson(request);
+
+          if (result.command === "start") benchResult = { state: "start" };
+          else if (["complete", "failed"].includes(result.state))
+            benchResult = result;
+          else {
+            sendJson(response, 400, { error: "Unknown benchmark command." });
+
+            return;
+          }
+
+          sendJson(response, 200, { accepted: true });
+
+          return;
+        }
       }
 
       sendJson(response, 404, { error: "Not found" });
