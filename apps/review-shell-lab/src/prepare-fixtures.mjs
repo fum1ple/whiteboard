@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
+  access,
   mkdir,
   readFile,
   readdir,
@@ -34,7 +35,15 @@ async function prepareFixture(fixture, { force }) {
     try {
       const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 
-      if (manifest.fixture === fixture) {
+      if (
+        manifest.fixture === fixture &&
+        (await existingFixtureIsUsable({
+          fixtureDir,
+          repositoryDir,
+          profileDir,
+          manifest,
+        }))
+      ) {
         process.stdout.write(
           `${fixture}: ${manifest.reviewId} (${manifest.baseSha.slice(0, 12)}..${manifest.headSha.slice(0, 12)})\n`,
         );
@@ -45,6 +54,11 @@ async function prepareFixture(fixture, { force }) {
       if (error.code !== "ENOENT") throw error;
     }
   }
+
+  if (await exists(path.join(profileDir, "review-server", "server.json")))
+    throw new Error(
+      `Cannot reseed ${fixture} while its Review API is running.`,
+    );
 
   await rm(repositoryDir, { recursive: true, force: true });
   await rm(profileDir, { recursive: true, force: true });
@@ -142,6 +156,70 @@ async function prepareFixture(fixture, { force }) {
   );
 
   return manifest;
+}
+
+export async function existingFixtureIsUsable({
+  fixtureDir,
+  repositoryDir,
+  profileDir,
+  manifest,
+}) {
+  if (
+    manifest.version !== 1 ||
+    !manifest.reviewId ||
+    manifest.repository !== "repo" ||
+    !/^[a-f\d]{40}$/i.test(manifest.baseSha) ||
+    !/^[a-f\d]{40}$/i.test(manifest.headSha)
+  )
+    return false;
+
+  try {
+    await access(repositoryDir);
+    await verifyFixtureRepository(repositoryDir, manifest);
+    await verifyStoppedProfile(profileDir);
+
+    return (
+      path.resolve(fixtureDir, manifest.repository) ===
+      path.resolve(repositoryDir)
+    );
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+
+    if (/database is missing/.test(error.message)) return false;
+
+    if (/still has a non-empty SQLite/.test(error.message)) return false;
+
+    if (/Could not verify fixture repository/.test(error.message)) return false;
+
+    if (/^git rev-parse refs\/shell-lab\//.test(error.message)) return false;
+    throw error;
+  }
+}
+
+function verifyFixtureRepository(repositoryDir, manifest) {
+  for (const [revision, expected] of [
+    ["base", manifest.baseSha],
+    ["head", manifest.headSha],
+  ]) {
+    const actual = git(repositoryDir, [
+      "rev-parse",
+      `refs/shell-lab/${revision}`,
+    ]);
+
+    if (actual !== expected)
+      throw new Error(`Fixture ${revision} ref differs from its manifest.`);
+  }
+}
+
+async function exists(file) {
+  try {
+    await access(file);
+
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 function fixtureSources(fixture) {
