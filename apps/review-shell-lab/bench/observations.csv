@@ -1,0 +1,16 @@
+host,run,idle_footprint_mib,post_interaction_footprint_mib,idle_cpu_percent_one_core,render_ready_seconds,valid,residual_processes
+electron,1,236.2,442.5,1.23,1.63,true,0
+tauri,1,309.4,340.4,1.70,1.12,true,0
+wails,1,313.9,348.4,1.53,1.31,true,0
+electron,2,239.3,446.1,1.53,1.51,true,0
+wails,2,318.4,326.9,2.10,1.32,true,0
+tauri,2,199.5,333.9,1.53,1.21,true,0
+wails,3,316.2,344.5,1.83,1.41,true,0
+electron,3,238.0,453.4,1.43,1.41,true,0
+tauri,3,302.5,335.5,2.03,1.11,true,0
+wails,4,339.5,355.7,1.67,1.31,true,0
+tauri,4,307.0,342.1,1.60,1.11,true,0
+electron,4,241.4,453.7,1.23,1.51,true,0
+tauri,5,303.1,334.9,1.77,1.11,true,0
+wails,5,318.1,355.8,1.80,1.52,true,0
+electron,5,241.6,447.3,1.53,1.41,true,0
