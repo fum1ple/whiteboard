@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -56,6 +57,7 @@ export function createHost(hostName, configuration) {
           apiPid: api.serverPid,
           instanceId: api.instanceId,
           readiness,
+          bench: configuration.bench === true,
           cli: (reviewId) => runReviewCli(profileDir, reviewId, configuration),
         });
         hostProcess = await (configuration.launchHost ?? launchNativeHost)(
@@ -108,6 +110,12 @@ export function createHost(hostName, configuration) {
       if (shell) await shell.close();
 
       if (api) await api.stop();
+
+      if (hostProcess?.shellLabProfileDir)
+        await rm(hostProcess.shellLabProfileDir, {
+          recursive: true,
+          force: true,
+        });
       api = undefined;
       shell = undefined;
       hostProcess = undefined;
@@ -136,7 +144,12 @@ export async function runShellLab({ host, fixture, reviewId, profileDir }) {
       fixture,
       fixtureRoot: path.join(appRoot, "fixtures"),
     });
-    adapter = createHost(host, { fixture, reviewId });
+    adapter = createHost(host, {
+      fixture,
+      reviewId,
+      bench: process.env.SHELL_LAB_BENCH === "1",
+      runId: context.runId,
+    });
 
     const ready = await adapter.start({
       runId: context.runId,
@@ -159,35 +172,59 @@ export async function runShellLab({ host, fixture, reviewId, profileDir }) {
 }
 
 async function launchNativeHost(hostName, url, configuration) {
+  const profileRoot =
+    process.platform === "darwin" ? "/private/tmp" : os.tmpdir();
+
+  const hostProfileDir = path.join(profileRoot, `wbsl-${configuration.runId}`);
+  await mkdir(hostProfileDir, { recursive: true, mode: 0o700 });
+
+  const env = {
+    ...process.env,
+    WHITEBOARD_SHELL_LAB_URL: url,
+    WHITEBOARD_SHELL_LAB_PROFILE_DIR: hostProfileDir,
+  };
+
   if (hostName === "electron") {
     const executable =
       configuration.electronPath ?? packagedExecutable(hostName);
 
-    return spawn(executable, [url], {
+    const child = spawn(executable, [url], {
       cwd: appRoot,
       stdio: "ignore",
-      env: process.env,
+      env,
     });
+
+    child.shellLabProfileDir = hostProfileDir;
+
+    return child;
   }
 
   if (hostName === "tauri") {
     const executable = configuration.tauriPath ?? packagedExecutable(hostName);
 
-    return spawn(executable, [], {
+    const child = spawn(executable, [], {
       cwd: path.join(appRoot, "hosts", "tauri"),
       stdio: "ignore",
-      env: { ...process.env, WHITEBOARD_SHELL_LAB_URL: url },
+      env,
     });
+
+    child.shellLabProfileDir = hostProfileDir;
+
+    return child;
   }
 
   if (hostName === "wails") {
     const executable = configuration.wailsPath ?? packagedExecutable(hostName);
 
-    return spawn(executable, [], {
+    const child = spawn(executable, [], {
       cwd: appRoot,
       stdio: "ignore",
-      env: { ...process.env, WHITEBOARD_SHELL_LAB_URL: url },
+      env,
     });
+
+    child.shellLabProfileDir = hostProfileDir;
+
+    return child;
   }
 
   throw new Error(`Unknown desktop host: ${hostName}`);

@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,7 +26,14 @@ if (
 
 const child = spawn(executable, ["build", "-clean"], {
   cwd: hostRoot,
-  env: { ...process.env, WHITEBOARD_SHELL_LAB_URL: "http://127.0.0.1:4321" },
+  env: {
+    ...process.env,
+    WHITEBOARD_SHELL_LAB_URL: "http://127.0.0.1:4321",
+    WHITEBOARD_SHELL_LAB_PROFILE_DIR: path.join(
+      os.tmpdir(),
+      "wbsl-build-placeholder",
+    ),
+  },
   stdio: "inherit",
 });
 

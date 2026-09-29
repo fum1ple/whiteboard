@@ -5,6 +5,13 @@ const shellUrl = process.argv.at(-1);
 if (!shellUrl?.startsWith("http://127.0.0.1:"))
   throw new Error("Electron host needs the local shell-lab URL.");
 
+const profileDir = process.env.WHITEBOARD_SHELL_LAB_PROFILE_DIR;
+
+if (!profileDir)
+  throw new Error("Electron host needs an isolated profile directory.");
+
+app.setPath("userData", profileDir);
+
 app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1440,
@@ -19,6 +26,7 @@ app.whenReady().then(async () => {
       sandbox: true,
     },
   });
+
   await window.loadURL(shellUrl);
 });
 

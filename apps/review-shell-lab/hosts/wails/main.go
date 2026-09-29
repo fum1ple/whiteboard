@@ -8,6 +8,7 @@ import (
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
 //go:embed frontend/*
@@ -31,6 +32,10 @@ func main() {
 		log.Fatal(err)
 	}
 	application := &App{shellURL: shellURL}
+	profileDir := os.Getenv("WHITEBOARD_SHELL_LAB_PROFILE_DIR")
+	if profileDir == "" {
+		log.Fatal("WHITEBOARD_SHELL_LAB_PROFILE_DIR must name an isolated profile")
+	}
 	if err := wails.Run(&options.App{
 		Title:     "Whiteboard Review · Wails shell",
 		Width:     1440,
@@ -39,6 +44,7 @@ func main() {
 		MinHeight: 640,
 		Assets:    assets,
 		Bind:      []interface{}{application},
+		Windows:   &windows.Options{WebviewUserDataPath: profileDir},
 	}); err != nil {
 		log.Fatal(err)
 	}
