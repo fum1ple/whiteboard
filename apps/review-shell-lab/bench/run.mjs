@@ -41,8 +41,10 @@ const raw = {
   measurement:
     "macOS ps cumulative CPU time; footprint JSON before/after each CPU window",
   windowCondition: {
-    required: "visible, foreground, and not minimized during idle and operation windows",
-    verifiedByCollector: false,
+    required:
+      "visible, foreground, and not minimized during idle and operation windows",
+    verifiedByCollector:
+      "attempted with System Events; runs record per-phase status",
   },
   fixtureIdentity: await fixtureIdentity(options.fixture, options.review),
   runs: [],
@@ -96,6 +98,7 @@ async function measureRun({ host, runNumber, options: runOptions }) {
   let previousCpu = new Map();
   let currentProcesses = [];
   let webKitBaseline;
+  let nativeHost;
 
   try {
     webKitBaseline = new Set(
@@ -162,6 +165,14 @@ async function measureRun({ host, runNumber, options: runOptions }) {
     delete ready.fixtureDir;
     run.ready = ready;
 
+    const shellStateResponse = await fetch(new URL("/__state", ready.url));
+    const shellState = await shellStateResponse.json();
+
+    run.shellState = shellState;
+
+    if (!shellStateResponse.ok || shellState.bench !== true)
+      throw new Error("Shared UI did not enable benchmark interactions.");
+
     const reviewContent = await reviewContentIdentity(
       ready.url,
       runOptions.review,
@@ -184,9 +195,25 @@ async function measureRun({ host, runNumber, options: runOptions }) {
       throw new Error(
         "Review API PID is outside the tracked host process tree.",
       );
+
+    nativeHost = run.processes.find((entry) =>
+      isHostExecutable(host, entry.executable),
+    );
+
+    if (!nativeHost)
+      throw new Error(
+        "Native host process is outside the tracked process tree.",
+      );
+    run.nativeHostPid = nativeHost.pid;
+    run.hostCoalition = await resourceCoalition(nativeHost.pid);
+
+    if (!run.hostCoalition)
+      throw new Error("Could not read the native host resource coalition.");
+    await checkWindowState("ready");
     await validateWebKitHelpers();
 
     phase = "idle";
+    await checkWindowState("idleStart");
     await takeSample();
     await validateWebKitHelpers();
     sampler = setInterval(
@@ -201,6 +228,7 @@ async function measureRun({ host, runNumber, options: runOptions }) {
       currentProcesses.map((entry) => entry.pid),
     );
     await delay(runOptions.idleSeconds * 1_000);
+    await checkWindowState("idleEnd");
     await takeSample();
     await validateWebKitHelpers();
     run.idleCpuSeconds = phaseCpu.idle;
@@ -210,24 +238,42 @@ async function measureRun({ host, runNumber, options: runOptions }) {
     await takeSample();
 
     phase = "operation";
+    await checkWindowState("operationStart");
     phaseCpu.operation = 0;
     await takeSample();
-    await fetch(new URL("/__bench", ready.url), {
+
+    const startResponse = await fetch(new URL("/__bench", ready.url), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ command: "start" }),
     });
 
-    const scenario = await waitFor(
-      async () => {
-        const response = await fetch(new URL("/__bench", ready.url));
-        const result = await response.json();
+    if (!startResponse.ok)
+      throw new Error(
+        `Shared UI did not accept the benchmark start command (${startResponse.status}).`,
+      );
 
-        return ["complete", "failed"].includes(result.state) ? result : null;
-      },
-      60_000,
-      "shared UI interaction scenario",
-    );
+    let lastBenchState;
+
+    let scenario;
+
+    try {
+      scenario = await waitFor(
+        async () => {
+          const response = await fetch(new URL("/__bench", ready.url));
+          const result = await response.json();
+          lastBenchState = result;
+
+          return ["complete", "failed"].includes(result.state) ? result : null;
+        },
+        60_000,
+        "shared UI interaction scenario",
+      );
+    } catch (error) {
+      throw new Error(
+        `${error.message} Last state: ${JSON.stringify(lastBenchState)}`,
+      );
+    }
 
     await takeSample();
     phase = "complete";
@@ -284,6 +330,10 @@ async function measureRun({ host, runNumber, options: runOptions }) {
     run.residualProcessCount = run.residualProcesses.length;
 
     if (run.residualProcessCount > 0) {
+      run.valid = false;
+      run.invalidReason ??=
+        "Tracked host or WebKit helper processes remained after shutdown.";
+
       try {
         run.footprint.exit = await footprintSnapshot(
           run.residualProcesses.map((entry) => entry.pid),
@@ -299,6 +349,14 @@ async function measureRun({ host, runNumber, options: runOptions }) {
   return run;
 
   async function validateWebKitHelpers() {
+    if (host === "electron") {
+      run.webKitHelpers = [];
+      run.systemWebKitHelpers = [];
+      run.attributionComplete = true;
+
+      return;
+    }
+
     const helpers = await webKitHelpers();
 
     const hostProcesses = new Set(
@@ -321,24 +379,51 @@ async function measureRun({ host, runNumber, options: runOptions }) {
       }
     }
 
+    const owned = helpers.filter(
+      (helper) =>
+        (!webKitBaseline.has(helper.identity) &&
+          helper.coalition?.id === run.hostCoalition.id &&
+          Date.parse(helper.startedAt) >= Date.parse(nativeHost.startedAt)) ||
+        hostTree.has(helper.parentPid),
+    );
+
     const newHelpers = helpers.filter(
       (helper) => !webKitBaseline.has(helper.identity),
     );
 
-    run.webKitHelpers = newHelpers.map(({ identity, ...helper }) => helper);
-
     const unknown = newHelpers.filter(
-      (helper) => !hostTree.has(helper.parentPid),
+      (helper) => !helper.coalition && !hostTree.has(helper.parentPid),
     );
 
-    if (unknown.length) {
+    const concurrentExternal = newHelpers.filter(
+      (helper) =>
+        helper.coalition?.id !== run.hostCoalition.id &&
+        !hostTree.has(helper.parentPid),
+    );
+
+    run.webKitHelpers = owned.map(({ identity, ...helper }) => helper);
+    run.systemWebKitHelpers = helpers
+      .filter((helper) => !owned.includes(helper))
+      .map(({ identity, ...helper }) => helper);
+
+    if (!owned.length) {
+      run.invalidReason = "No WebKit helper matched the native host coalition.";
+      run.attributionComplete = false;
+    } else if (unknown.length) {
       run.invalidReason = `WebKit helper ownership is unknown for PID(s): ${unknown.map((helper) => helper.pid).join(", ")}.`;
+      run.attributionComplete = false;
+    } else if (concurrentExternal.length) {
+      run.invalidReason = `A different WebKit coalition started during the run (PID(s): ${concurrentExternal.map((helper) => helper.pid).join(", ")}).`;
       run.attributionComplete = false;
     } else run.attributionComplete = true;
   }
 
   async function takeSample() {
-    const processes = await processSnapshot(runner.pid);
+    const processes = await processSnapshot(
+      runner.pid,
+      (run.webKitHelpers ?? []).map((helper) => helper.pid),
+    );
+
     currentProcesses = processes;
 
     for (const entry of processes) {
@@ -352,6 +437,24 @@ async function measureRun({ host, runNumber, options: runOptions }) {
     }
 
     run.processes = [...knownProcesses.values()];
+  }
+
+  async function checkWindowState(phaseName) {
+    const state = windowState(nativeHost.pid);
+
+    run.windowStates ??= {};
+    run.windowStates[phaseName] = state;
+
+    if (
+      state.verified &&
+      (!state.frontmost ||
+        !state.visible ||
+        state.minimized ||
+        state.width !== 1440 ||
+        state.height !== 960)
+    ) {
+      run.invalidReason = `Native host window did not meet the visible 1440x960 foreground condition at ${phaseName}.`;
+    }
   }
 }
 
@@ -381,9 +484,11 @@ async function webKitHelpers() {
       identity: `${pid}:${details.startedAt}:${details.executable}`,
       pid,
       parentPid: Number(match[2]),
+      startedAt: details.startedAt,
       executable: details.executable,
       name: path.basename(details.executable),
       cpuSeconds: parseCpuTime(match[3]),
+      coalition: await resourceCoalition(pid),
     });
   }
 
@@ -400,7 +505,7 @@ function isHostExecutable(host, executable) {
   return name === "whiteboardshelllabwails";
 }
 
-async function processSnapshot(rootPid) {
+async function processSnapshot(rootPid, additionalPids = []) {
   if (!rootPid) return [];
 
   const output = execFile("ps", ["-axo", "pid=,ppid=,time=,command="], {
@@ -425,7 +530,7 @@ async function processSnapshot(rootPid) {
     .filter(Boolean);
 
   const byPid = new Map(processes.map((entry) => [entry.pid, entry]));
-  const selected = new Set([rootPid]);
+  const selected = new Set([rootPid, ...additionalPids]);
   let grew = true;
 
   while (grew) {
@@ -487,6 +592,66 @@ function processDetails(pid) {
     startedAt: match[1].trim(),
     command: match[2],
     executable: match[2].split(/\s+/)[0],
+  };
+}
+
+async function resourceCoalition(pid) {
+  const result = spawnSync("launchctl", ["print", `pid/${pid}`], {
+    encoding: "utf8",
+    timeout: 5_000,
+  });
+
+  if (result.status !== 0) return null;
+
+  const coalition = /resource coalition\s*=\s*\{([\s\S]*?)\n\s*\}/.exec(
+    result.stdout,
+  )?.[1];
+
+  const id = /\bID\s*=\s*(\d+)/.exec(coalition ?? "")?.[1];
+
+  if (!id) return null;
+  const bundleId = /\bbundle ID\s*=\s*(.+)/.exec(coalition ?? "")?.[1];
+
+  return { id: Number(id), bundleId: bundleId?.trim() ?? null };
+}
+
+function windowState(pid) {
+  const script = [
+    'tell application "System Events"',
+    `set p to first application process whose unix id is ${pid}`,
+    "set f to frontmost of p",
+    "set v to visible of p",
+    'if (count of windows of p) is 0 then return (f as text) & "|" & (v as text) & "|missing"',
+    "set w to window 1 of p",
+    'set m to value of attribute "AXMinimized" of w',
+    "set s to size of w",
+    'return (f as text) & "|" & (v as text) & "|" & (m as text) & "|" & (item 1 of s as text) & "x" & (item 2 of s as text)',
+    "end tell",
+  ].join("\n");
+
+  const result = spawnSync("osascript", ["-e", script], {
+    encoding: "utf8",
+    timeout: 5_000,
+  });
+
+  if (result.status !== 0)
+    return { verified: false, reason: safeError(result.stderr.trim()) };
+  const [frontmost, visible, minimized, size] = result.stdout.trim().split("|");
+  const [width, height] = (size ?? "").split("x").map(Number);
+
+  if (!Number.isFinite(width) || !Number.isFinite(height))
+    return {
+      verified: false,
+      reason: "System Events did not return window dimensions.",
+    };
+
+  return {
+    verified: true,
+    frontmost: frontmost === "true",
+    visible: visible === "true",
+    minimized: minimized === "true",
+    width,
+    height,
   };
 }
 
